@@ -3,19 +3,26 @@ use warp::Filter;
 
 #[tokio::main]
 async fn main() {
+    if env::var_os("RUST_LOG").is_none() {
+        env::set_var("RUST_LOG", "urls=info");
+    }
+    pretty_env_logger::init();
+
     let db = models::blank_db();
+
+    let not_found = warp::path("not_found")
+    .and(warp::path::end())
+    .and(warp::fs::file("./src/html/not_found.html"));
 
     let site = warp::get()
         .and(warp::path::end())
-        .and(warp::fs::dir("./src/html/index.html"));
+        .and(warp::fs::dir("./src/html/"));
 
-    let not_found = warp::path("not_found")
-        .and(warp::path::end())
-        .and(warp::fs::file("./src/html/not_found.html"));
+    let api = site.or(not_found).or(filters::urls(db));
 
-    let api = filters::urls(db).or(not_found).or(site);
+    let routes = api.with(warp::log("urls"));
 
-    warp::serve(api).run(([127, 0, 0, 1], 3030)).await;
+    warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 }
 
 mod filters {
@@ -32,10 +39,11 @@ mod filters {
     pub fn url_get(
         db: Db,
     ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-        warp::path!("urls" / String)
-            .and(warp::get())
+            warp::get()
+            .and(warp::path::param())
             .and(with_db(db))
             .and_then(handlers::get_url)
+            
     }
 
     pub fn url_create(
@@ -65,8 +73,7 @@ mod handlers {
         let urls = db.lock().await;
         for url in urls.iter() {
             if url.slug == slug {
-                let location = url.url.parse::<Uri>().unwrap();
-                return Ok(warp::redirect(location));
+                return Ok(warp::redirect(url.url.parse::<Uri>().unwrap()));
             }
         }
         Ok(warp::redirect(Uri::from_static("/not_found")))
