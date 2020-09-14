@@ -11,12 +11,12 @@ async fn main() {
     let db = models::blank_db();
 
     let not_found = warp::path("not_found")
-    .and(warp::path::end())
-    .and(warp::fs::file("./src/html/not_found.html"));
+        .and(warp::path::end())
+        .and(warp::fs::file("./src/www/not_found.html"));
 
     let site = warp::get()
         .and(warp::path::end())
-        .and(warp::fs::dir("./src/html/"));
+        .and(warp::fs::dir("./src/www/"));
 
     let api = site.or(not_found).or(filters::urls(db));
 
@@ -27,7 +27,7 @@ async fn main() {
 
 mod filters {
     use super::handlers;
-    use super::models::{Db, Url};
+    use super::models::{Db, Link};
     use warp::Filter;
 
     pub fn urls(
@@ -39,11 +39,10 @@ mod filters {
     pub fn url_get(
         db: Db,
     ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-            warp::get()
+        warp::get()
             .and(warp::path::param())
             .and(with_db(db))
             .and_then(handlers::get_url)
-            
     }
 
     pub fn url_create(
@@ -59,13 +58,13 @@ mod filters {
     fn with_db(db: Db) -> impl Filter<Extract = (Db,), Error = std::convert::Infallible> + Clone {
         warp::any().map(move || db.clone())
     }
-    fn json_body() -> impl Filter<Extract = (Url,), Error = warp::Rejection> + Clone {
+    fn json_body() -> impl Filter<Extract = (Link,), Error = warp::Rejection> + Clone {
         warp::body::content_length_limit(1024 * 16).and(warp::body::json())
     }
 }
 
 mod handlers {
-    use super::models::{Db, Url};
+    use super::models::{Db, Link};
     use std::convert::Infallible;
     use warp::{http::StatusCode, http::Uri};
 
@@ -79,9 +78,14 @@ mod handlers {
         Ok(warp::redirect(Uri::from_static("/not_found")))
     }
 
-    pub async fn create_url(url: Url, db: Db) -> Result<impl warp::Reply, Infallible> {
+    pub async fn create_url(new_link: Link, db: Db) -> Result<impl warp::Reply, Infallible> {
         let mut vec = db.lock().await;
-        vec.push(url);
+        for link in vec.iter() {
+            if link.slug == new_link.slug {
+                return Ok(StatusCode::CONFLICT);
+            }
+        }
+        vec.push(new_link);
         Ok(StatusCode::CREATED)
     }
 }
@@ -91,14 +95,14 @@ mod models {
     use std::sync::Arc;
     use tokio::sync::Mutex;
 
-    pub type Db = Arc<Mutex<Vec<Url>>>;
+    pub type Db = Arc<Mutex<Vec<Link>>>;
 
     pub fn blank_db() -> Db {
         Arc::new(Mutex::new(Vec::new()))
     }
 
     #[derive(Debug, Deserialize, Serialize, Clone)]
-    pub struct Url {
+    pub struct Link {
         pub url: String,
         pub slug: String,
     }
