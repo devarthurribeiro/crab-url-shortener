@@ -1,6 +1,10 @@
 #  🦀 Crab URL Shortener
 
-
+<div align="center">
+  <br>
+    <img src="public/screen.png" alt="Screenshot1" width="70%">
+  <br>
+</div>
 
 ## Build and Run
 
@@ -10,3 +14,4 @@
 ```
 cargo run
 ```
+
