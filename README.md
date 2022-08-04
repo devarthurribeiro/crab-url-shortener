@@ -2,7 +2,7 @@
 
 <div align="center">
   <br>
-    <img src="public/screen.png" alt="Screenshot1" width="70%">
+    <img src="public/screen.png" alt="Screenshot1" width="80%">
   <br>
 </div>
 
